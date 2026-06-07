@@ -1,0 +1,55 @@
+name: Daily US Large-Cap Stock Scan ($20+)
+
+on:
+  schedule:
+    # 3:30 PM Saudi time = 12:30 PM UTC
+    - cron: '30 12 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Collect universe
+        env:
+          EODHD_API_KEY: ${{ secrets.EODHD_API_KEY }}
+        run: python universe_collect.py
+
+      - name: Run daily scan
+        env:
+          EODHD_API_KEY: ${{ secrets.EODHD_API_KEY }}
+        run: python daily_scan.py
+
+      - name: Prepare GitHub Pages output
+        run: |
+          mkdir -p docs
+          cp US_Large_Scan_*.html docs/index.html
+          cp US_Large_Scan_*.html docs/
+          cp master_ranked_*.csv docs/ 2>/dev/null || true
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          keep_files: true
+          commit_message: "Large Scan ${{ github.run_number }} — $(date +'%Y-%m-%d')"
